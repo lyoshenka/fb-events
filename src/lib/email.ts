@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { sendDiscordError } from "@/lib/discord";
 import { env } from "@/lib/env";
 import type { LumaEvent } from "@/lib/luma";
 
@@ -189,9 +190,10 @@ export async function sendBatchEmails(
   type: "weekly" | "new-event",
   singleEvent?: LumaEvent,
   discordWebhookUrl?: string
-): Promise<{ success: number; failed: number }> {
+): Promise<{ success: number; failed: number; errors: Error[] }> {
   let success = 0;
   let failed = 0;
+  const errors: Error[] = [];
 
   // Resend has a batch API, but for simplicity we'll send individually
   // with a small delay to avoid rate limits (100/sec on free tier)
@@ -208,12 +210,12 @@ export async function sendBatchEmails(
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(`Failed to send email to ${email}:`, err);
+      errors.push(err);
       failed++;
 
       // Log to Discord if webhook URL is provided
       if (discordWebhookUrl !== undefined) {
         try {
-          const { sendDiscordError } = await import("./discord");
           await sendDiscordError(
             discordWebhookUrl,
             err,
@@ -226,5 +228,5 @@ export async function sendBatchEmails(
     }
   }
 
-  return { success, failed };
+  return { success, failed, errors };
 }
